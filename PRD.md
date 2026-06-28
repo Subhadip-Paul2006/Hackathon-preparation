@@ -42,6 +42,32 @@ The platform addresses India's escalating climate vulnerability — monsoon vari
 2. **Secondary:** Urban planners (Smart Cities), water resource managers (CWC), insurance/risk analysts, renewable energy grid operators
 3. **Tertiary:** Farmers (via mobile-first advisory), journalists, researchers, international climate bodies (IPCC, WMO)
 
+### User Journey: Emergency Disaster Manager Scenario
+```mermaid
+journey
+    title Disaster Manager Response Journey
+    section Event Detection
+      Monitor Cesium dashboard for anomalies: 5: Disaster Manager
+      Receive automated WhatsApp/SMS storm alert: 5: Disaster Manager, System
+      Run ensemble simulation for inundation mapping: 4: Disaster Manager, DTSE
+    section Scenario Analysis
+      Perturb rainfall intensity using slider (+20%): 4: Disaster Manager, What-If
+      Assess affected wards and critical infrastructure: 5: Disaster Manager, UCRD
+      Generate bilingual briefing for state cabinet: 4: Disaster Manager, DRA
+    section Action & Mitigation
+      Pre-position NDRF rescue teams in high-risk zones: 5: Disaster Manager
+      Trigger localized SMS warnings to citizens: 5: Disaster Manager, System
+```
+
+### Targeted Platform Benefits Allocation
+```mermaid
+pie title Target Benefit Allocation in Pilot Basin
+    "Agricultural Water Savings" : 25
+    "Urban Flood Damage Mitigation" : 35
+    "Disaster Evacuation Efficiency" : 20
+    "Research Ingestion & Policy Speedup" : 20
+```
+
 ---
 
 ## 3. Problem Statement
@@ -277,6 +303,29 @@ The Asia-Pacific climate digital twin market is the fastest-growing globally (CA
 ---
 
 ## 10. Roadmap
+
+### Phase 1 Sprint Kanban Board
+```mermaid
+flowchart LR
+    subgraph Backlog
+        B1["FR-004.6: AgriStack Integration"]
+        B2["FR-005.4: Stormwater Simulation"]
+    end
+    subgraph InProgress["In Progress"]
+        IP1["FR-001.2: Spatiotemporal Alignment"]
+        IP2["FR-002.1: Coupled 1km Model"]
+    end
+    subgraph InReview["In Review"]
+        IR1["FR-003.2: DRA Citation Extractor"]
+    end
+    subgraph Done
+        D1["FR-001.1: Data Ingest APIs"]
+        D2["FR-004.5: Mobile Indic NLP Advisory"]
+    end
+    style Done fill:#4F9,stroke:#0A0,stroke-width:2px
+    style InProgress fill:#F95,stroke:#D50,stroke-width:2px
+    style InReview fill:#9CF,stroke:#05D,stroke-width:2px
+```
 
 ### Phase 1: Foundation (Q3 2026 - Q2 2027)
 - [ ] Climate Data Fabric v1.0 with 10 core data sources

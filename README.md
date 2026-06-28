@@ -122,6 +122,67 @@ The AIDT system is organized as four cooperating layers that progressively trans
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+### High-Level Architecture Diagram
+```mermaid
+graph TD
+    subgraph L1_Ingestion["Layer 1: Multi-Source Data Ingestion"]
+        IMD["IMD Gridded (Rainfall 0.25, Temp 1.0)"]
+        INSAT["INSAT-3D/3DR (MOSDAC APIs)"]
+        Bhuvan["Bhuvan Geoportal Layers (LULC, GIS)"]
+        Reanalysis["ERA5 / IMDAA Reanalysis"]
+    end
+
+    subgraph L2_Processing["Layer 2: Data Processing & Assimilation"]
+        Kafka["Kafka Streaming Bus"]
+        Flink["Flink Real-Time QC"]
+        Dask["Dask Parallel Preprocessing"]
+        Zarr["Zarr Cloud-Native Storage"]
+        UNetKF["UNetKF Data Assimilation"]
+    end
+
+    subgraph L3_Engine["Layer 3: AI-Powered Digital Twin Engine"]
+        ConvLSTM["ConvLSTM Nowcasting"]
+        Swin["Swin Transformer Forecast"]
+        GNN["GNN Basin Routing"]
+        PINN["PINN Physical Constraints"]
+        Stacking["Stacking / Ensemble Gating"]
+    end
+
+    subgraph L4_Visualization["Layer 4: Visualization & Decision Support"]
+        FastAPI["FastAPI App Server"]
+        Cesium["CesiumJS 3D Globe"]
+        Mapbox["Mapbox GL Vector Overlays"]
+        WhatIf["What-If Scenario Sandbox"]
+        AgriApp["Mobile Agricultural Advisory"]
+    end
+
+    IMD --> Kafka
+    INSAT --> Kafka
+    Bhuvan --> Dask
+    Reanalysis --> Dask
+
+    Kafka --> Flink
+    Flink --> Dask
+    Dask --> Zarr
+    Zarr --> UNetKF
+
+    UNetKF --> ConvLSTM
+    UNetKF --> Swin
+    UNetKF --> GNN
+    UNetKF --> PINN
+
+    ConvLSTM --> Stacking
+    Swin --> Stacking
+    GNN --> Stacking
+    PINN --> Stacking
+
+    Stacking --> FastAPI
+    FastAPI --> Cesium
+    FastAPI --> Mapbox
+    FastAPI --> WhatIf
+    FastAPI --> AgriApp
+```
+
 **Why this 4-layer shape?** Every successful climate digital-twin precedent — DestinE, NASA ESDT, GraphCast-style systems — separates *ingest*, *state estimation*, *prediction*, and *delivery*. Mixing them creates hidden state, broken scaling, and unverifiable outputs. The vertical alignment in the diagram mirrors how a request flows top-down in inference and how feedback (new observations, user scenarios) flows bottom-up in retraining.
 
 ---
@@ -321,68 +382,51 @@ Each row maps 1:1 to the four-layer architecture above; arrows show dependency d
 
 ---
 
-## Project Structure
+## Project Structure & Treeview
 
-```
+```text
 aidt-india/
-├── README.md
-├── LICENSE
-├── CITATION.cff
-├── Makefile
-├── docker-compose.yml
-├── pyproject.toml
-├── environment.yml
-├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml
-│   │   ├── cd.yml
-│   │   └── model-eval.yml
-│   └── CODEOWNERS
-├── data/
-│   ├── raw/                 # IMD, INSAT, MOSDAC, ERA5, IMDAA
-│   ├── processed/           # Harmonised, QC'd intermediate
-│   └── catalog/             # STAC JSON, schemas
-├── src/
-│   ├── aidt/
-│   │   ├── __init__.py
-│   │   ├── config/
-│   │   ├── ingest/          # Source connectors (IMD, ISRO, ERA5)
-│   │   ├── qc/              # Quality control, gap-fill
-│   │   ├── assimilation/    # 3DVar / 4DEnVar
-│   │   ├── features/        # Zarr feature store builder
-│   │   ├── models/
-│   │   │   ├── convlstm/
-│   │   │   ├── swin/
-│   │   │   ├── gnn/
-│   │   │   ├── pinn/
-│   │   │   └── xgboost/
-│   │   ├── ensemble/        # Stacking + uncertainty
-│   │   ├── scenario/        # What-if counterfactuals
-│   │   ├── api/             # FastAPI service
-│   │   └── cli.py
-├── dashboard/               # React + deck.gl frontend
-│   ├── src/
-│   ├── public/
-│   └── package.json
-├── pipelines/               # Airflow DAGs
-│   └── dags/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── model/
-├── notebooks/               # Exploratory & reproducible analyses
-├── deploy/
-│   ├── helm/
-│   ├── terraform/
-│   └── k8s/
-├── benchmarks/
-│   ├── city_scores.csv
-│   └── plots/
-└── docs/
-    ├── architecture.md
-    ├── data-card.md
-    ├── model-card.md
-    └── figures/
+├── README.md                 # Project catalog and onboarding guide
+├── LICENSE                   # Open-source licensing (MIT)
+├── CITATION.cff              # Academic citation metadata
+├── Makefile                  # Local task automation commands
+├── docker-compose.yml        # Multi-container local orchestration
+├── pyproject.toml            # Python packaging and linting configurations
+├── environment.yml           # Conda environment dependency spec
+├── .github/                  # CI/CD and repository guidelines
+│   ├── workflows/            # GitHub Actions (CI, CD, Model Eval)
+│   │   ├── ci.yml            # Linting and unit tests runner
+│   │   ├── cd.yml            # Multi-region image builder and deployer
+│   │   └── model-eval.yml    # Continuous evaluation of offline model metrics
+│   └── CODEOWNERS            # Code ownership boundaries
+├── data/                     # Data directory (ignored in version control)
+│   ├── raw/                  # Raw inputs: IMD ASCII/NetCDF, INSAT HDF5, ERA5
+│   ├── processed/            # Regridded and QC'd target datasets
+│   └── catalog/              # Spatiotemporal Asset Catalog (STAC) metadata
+├── src/                      # Source codebase
+│   └── aidt/                 # Root namespace
+│       ├── __init__.py       # Package initialization
+│       ├── config/           # Environment variables and path profiles
+│       ├── ingest/           # Fetchers for MOSDAC, Bhuvan, NICES, and IMD
+│       ├── qc/               # Spatial-temporal quality control & interpolation
+│       ├── assimilation/     # UNetKF surrogate & 4DVar assimilation loops
+│       ├── features/         # Zarr datacube creation and chunking rules
+│       ├── models/           # Deep learning climate architectures
+│       │   ├── convlstm/     # Short-range convective rain nowcasting
+│       │   ├── swin/         # Medium-range spatiotemporal prediction
+│       │   ├── gnn/          # Topography-aware downscaling and hydrology
+│       │   ├── pinn/         # Navier-Stokes constraints & ClimODE emulators
+│       │   └── xgboost/      # Station-level residual bias correction
+│       ├── ensemble/         # Multi-model stacking & uncertainty (CRPS)
+│       ├── scenario/         # Counterfactual delta-method simulation engine
+│       ├── api/              # FastAPI REST endpoints & WebSocket publishers
+│       └── cli.py            # Command Line Interface for cluster workflows
+├── dashboard/                # Next.js / React dashboard client
+├── pipelines/                # Apache Airflow orchestration workflows
+├── tests/                    # Testing suite (unit, integration, model)
+├── notebooks/                # Jupyter research and prototyping files
+├── deploy/                   # Production deployment configurations (K8s, Terraform)
+└── docs/                     # Detailed architectural, PRD, and TRD materials
 ```
 
 ---
@@ -454,6 +498,54 @@ http://localhost:8000/docs
   │ 24-h nowcast     │ 10-day forecast  │ Sectoral impact modules             │
   │ RMSE < 1 mm/d    │ API for MoES/CWC │ Climate projections at 5 km         │
   │ 4× H100          │ 64-GPU cluster   │ Hybrid HPC + sovereign cloud        │
+```
+
+### Gantt Chart Timeline
+```mermaid
+gantt
+    title Indian Climate Digital Twin (ICDT) Project Roadmap
+    dateFormat  YYYY-MM
+    section Phase 1: Proof of Concept
+    Data Ingestion & QC Pipelines       :active, p1_data, 2026-07, 2026-08
+    Baseline ConvLSTM & Ensemble Models :active, p1_models, 2026-08, 2026-09
+    What-If Sliders & Dashboard PoC    :p1_dash, 2026-09, 2026-10
+    Validation (RMSE, MAE, CRPS)       :p1_val, 2026-10, 2026-11
+    section Phase 2: National Coverage
+    INSAT/Oceansat Integration          :p2_data, 2026-11, 2027-04
+    GNN & PINN Hybrid Assimilation      :p2_models, 2027-03, 2027-09
+    Pan-India 5-km Twin Deployment      :p2_deploy, 2027-08, 2028-02
+    AgriStack & NDMA API Integrations   :p2_apis, 2027-12, 2028-03
+    section Phase 3: Earth-System Twin
+    Atmosphere-Ocean Coupling           :p3_coupling, 2028-04, 2028-12
+    6.6 PB/day I/O Class Scaling        :p3_scale, 2028-10, 2029-06
+    SAARC Climate Twin Federation       :p3_fed, 2029-06, 2030-12
+```
+
+### Git Workflow Graph
+```mermaid
+gitGraph
+    commit id: "Initial proposal"
+    branch develop
+    checkout develop
+    commit id: "Add data-card & requirements"
+    branch feature/data-ingest
+    checkout feature/data-ingest
+    commit id: "Add IMD/MOSDAC connectors"
+    checkout develop
+    merge feature/data-ingest
+    branch feature/models
+    checkout feature/models
+    commit id: "Implement ConvLSTM surrogate"
+    commit id: "Add PINN ClimODE physics loss"
+    checkout develop
+    merge feature/models
+    branch release/v1.0.0-poc
+    checkout release/v1.0.0-poc
+    commit id: "Freeze PoC state"
+    checkout main
+    merge release/v1.0.0-poc tag: "v1.0.0-poc"
+    checkout develop
+    commit id: "Begin Phase 2 scale-up"
 ```
 
 ---

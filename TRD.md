@@ -139,6 +139,54 @@ The ICDT platform is a distributed, cloud-native system built on a **multi-agent
 │  │  (IaC)       │  │  (GitOps)    │  │ (Streaming)  │  │ (Logging)    │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+### C4 System Context Diagram
+```mermaid
+graph TD
+    User["Climate Scientists / Disaster Managers / Farmers"]
+    ICDT["Indian Climate Digital Twin (ICDT)"]
+    ISRO["ISRO MOSDAC / Bhuvan APIs"]
+    IMD["IMD Weather Services"]
+    CWC["Central Water Commission"]
+    NDMA["NDMA Emergency Systems"]
+
+    User -->|Uses dashboard, APIs, advisories| ICDT
+    ICDT -->|Queries historical & real-time satellite data| ISRO
+    ICDT -->|Queries gridded weather and station data| IMD
+    ICDT -->|Queries river and reservoir levels| CWC
+    ICDT -->|Triggers alerts & push advisories| NDMA
+```
+
+### C4 Container Diagram
+```mermaid
+graph TD
+    User["User / Stakeholder"]
+    Web["Web Dashboard (React / Next.js)"]
+    Mobile["Mobile Advisory App (Flutter)"]
+    Gateway["API Gateway (Kong)"]
+    FAST["FastAPI Web Server"]
+    DRA["Deep Research Agent (LangGraph/Temporal)"]
+    DTSE["Digital Twin Simulation Engine (PyTorch/HPC)"]
+    CDF["Climate Data Fabric (Flink/Kafka/Airflow)"]
+    TSDB["TimescaleDB (Sensor Data)"]
+    Milvus["Milvus Vector DB (Research papers)"]
+    Neo4j["Neo4j Graph DB (Knowledge Graph)"]
+    S3["MinIO / S3 Object Store (Zarr/GeoTIFF)"]
+
+    User -->|HTTPS| Web
+    User -->|HTTPS| Mobile
+    Web -->|HTTPS / WSS| Gateway
+    Mobile -->|HTTPS| Gateway
+    Gateway -->|HTTPS / WSS| FAST
+    FAST -->|gRPC / HTTP| DRA
+    FAST -->|gRPC / HTTP| DTSE
+    FAST -->|SQL| TSDB
+    CDF -->|Kafka / Spark| S3
+    CDF -->|SQL| TSDB
+    DTSE -->|Read/Write Zarr| S3
+    DRA -->|Vector queries| Milvus
+    DRA -->|Graph traversals| Neo4j
+```
 ```
 
 ---
@@ -351,6 +399,30 @@ CWC HYDRO (API) -> Analytics Warehouse (Snowflake) -> ML Training Dataset (S3 + 
                                                     -> Dashboard (React) / Mobile (Flutter) / Research API
 ```
 
+### Sequence Diagram: Real-Time Data Ingestion and Forecasting
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sensor as Weather Stations / Satellites
+    participant CDF as Climate Data Fabric (Kafka/Flink)
+    participant S3 as Zarr Storage (MinIO/S3)
+    participant DTSE as DT Simulation Engine (UNetKF)
+    participant FastAPI as FastAPI API Server
+    participant User as Web Dashboard
+
+    Sensor->>CDF: Publish raw observation data (HDF5/ASCII)
+    CDF->>CDF: Quality Control & Range Check
+    CDF->>CDF: Regrid & Spatiotemporal Alignment (Dask/Pyresample)
+    CDF->>S3: Serialize processed data as chunked Zarr
+    DTSE->>S3: Read latest Zarr state
+    DTSE->>DTSE: Run UNetKF Data Assimilation
+    DTSE->>DTSE: Run coupled ConvLSTM/Swin-T/PINN ensemble
+    DTSE->>S3: Write forecast field outputs
+    User->>FastAPI: Query 3D forecast map layer
+    FastAPI->>S3: Fetch optimized Zarr slices
+    FastAPI->>User: Serve WebGL map tiles / GeoJSON
+```
+
 ### 4.2 Data Models
 
 #### 4.2.1 Climate Observation Schema (Avro)
@@ -366,6 +438,58 @@ Fields: twin_id, valid_time (timestamp-millis), forecast_hour, ensemble_member, 
 **Nodes:** Concept (climate_phenomenon), Variable (climate variable), Dataset, Paper, Model, Location, Event
 
 **Relationships:** INFLUENCED_BY (strength, mechanism), STUDIES (finding), USES_DATASET, SIMULATES (skill_score), OCCURRED_IN, CAUSED_BY (contribution), COVERS
+
+### Entity Relationship Diagram (ERD)
+```mermaid
+erDiagram
+    STATION ||--o{ OBSERVATION : records
+    STATION {
+        string station_id PK
+        string name
+        float latitude
+        float longitude
+        float elevation
+    }
+    OBSERVATION {
+        string observation_id PK
+        string station_id FK
+        datetime timestamp
+        float value
+        string variable_type
+        int quality_flag
+    }
+    GRID_CELL ||--o{ MODEL_OUTPUT : contains
+    GRID_CELL {
+        string cell_id PK
+        float lat_min
+        float lat_max
+        float lon_min
+        float lon_max
+    }
+    MODEL_OUTPUT {
+        string output_id PK
+        string cell_id FK
+        datetime valid_time
+        int lead_time
+        int ensemble_member
+        float temperature
+        float precipitation
+    }
+    PAPER ||--o{ CITATION : cites
+    PAPER {
+        string paper_id PK
+        string title
+        string author
+        int publication_year
+        string embedding_vector_id
+    }
+    CITATION {
+        string citation_id PK
+        string source_paper_id FK
+        string target_paper_id FK
+        string finding_context
+    }
+```
 
 ---
 
@@ -575,6 +699,61 @@ Continuous monitoring using EvidentlyAI for data drift detection, MLflowMetrics 
 ---
 
 ## 10. Development Standards
+
+### Pipeline and Modeling Class Structure Diagram
+```mermaid
+classDiagram
+    class DataConnector {
+        +string source_name
+        +string api_url
+        +connect()
+        +fetch_raw_data(datetime start, datetime end)
+    }
+    class MOSDACConnector {
+        +string hdf5_schema
+        +download_l2b_products()
+    }
+    class IMDConnector {
+        +string grid_type
+        +download_ascii_grid()
+    }
+    DataConnector <|-- MOSDACConnector
+    DataConnector <|-- IMDConnector
+
+    class PreprocessingPipeline {
+        +xarray.Dataset ds
+        +quality_control()
+        +regrid(float spatial_res)
+        +temporal_align(string frequency)
+        +write_to_zarr(string path)
+    }
+    PreprocessingPipeline --> DataConnector : uses
+
+    class ClimateModel {
+        +string model_name
+        +dict hyperparameters
+        +train(Dataset train_ds)
+        +predict(Dataset input_ds)
+    }
+    class ConvLSTMModel {
+        +int kernel_size
+        +predict_nowcast()
+    }
+    class SwinTModel {
+        +int patch_size
+        +predict_medium_range()
+    }
+    ClimateModel <|-- ConvLSTMModel
+    ClimateModel <|-- SwinTModel
+
+    class EnsembleStacker {
+        +list models
+        +dict weights
+        +generate_consensus()
+        +compute_crps()
+    }
+    EnsembleStacker --> ClimateModel : aggregates
+```
 
 ### 10.1 Coding Standards
 
